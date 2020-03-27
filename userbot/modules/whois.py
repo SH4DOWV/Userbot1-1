@@ -5,34 +5,33 @@
 #
 # The entire source code is OSSRPL except 'whois' which is MPL
 # License: MPL and OSSRPL
-""" Userbot module for getiing info about any user on Telegram(including you!). """
+""" Userbot module for getiing info
+    about any user on Telegram(including you!). """
 
 import os
 
-from telethon.tl.functions.photos import GetUserPhotosRequest
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types import MessageEntityMentionName
-from telethon.utils import get_input_location
-from userbot import CMD_HELP, TEMP_DOWNLOAD_DIRECTORY
-from userbot.events import register
+
+from userbot import CMD_HELP
+from userbot.events import register, errors_handler
+
+TMP_DOWNLOAD_DIRECTORY = "./"
 
 
 @register(pattern=".whois(?: |$)(.*)", outgoing=True)
+@errors_handler
 async def who(event):
+    """ For .whois command, get info about a user. """
+    if event.fwd_from:
+        return
 
-    await event.edit(
-        "`Sit tight while I steal some data from Mark Zuckerburg...`")
-
-    if not os.path.isdir(TEMP_DOWNLOAD_DIRECTORY):
-        os.makedirs(TEMP_DOWNLOAD_DIRECTORY)
+    if not os.path.isdir(TMP_DOWNLOAD_DIRECTORY):
+        os.makedirs(TMP_DOWNLOAD_DIRECTORY)
 
     replied_user = await get_user(event)
 
-    try:
-        photo, caption = await fetch_info(replied_user, event)
-    except AttributeError:
-        event.edit("`Could not fetch info of that user.`")
-        return
+    photo, caption = await fetch_info(replied_user, event)
 
     message_id_to_reply = event.message.reply_to_msg_id
 
@@ -58,7 +57,7 @@ async def who(event):
 
 async def get_user(event):
     """ Get the user from argument or replied message. """
-    if event.reply_to_msg_id and not event.pattern_match.group(1):
+    if event.reply_to_msg_id:
         previous_message = await event.get_reply_message()
         replied_user = await event.client(
             GetFullUserRequest(previous_message.from_id))
@@ -93,24 +92,9 @@ async def get_user(event):
 
 async def fetch_info(replied_user, event):
     """ Get details from the User object. """
-    replied_user_profile_photos = await event.client(
-        GetUserPhotosRequest(user_id=replied_user.user.id,
-                             offset=42,
-                             max_id=0,
-                             limit=80))
-    replied_user_profile_photos_count = "Person needs help with uploading profile picture."
-    try:
-        replied_user_profile_photos_count = replied_user_profile_photos.count
-    except AttributeError as e:
-        pass
     user_id = replied_user.user.id
     first_name = replied_user.user.first_name
     last_name = replied_user.user.last_name
-    try:
-        dc_id, location = get_input_location(replied_user.profile_photo)
-    except Exception as e:
-        dc_id = "Couldn't fetch DC ID!"
-        location = str(e)
     common_chat = replied_user.common_chats_count
     username = replied_user.user.username
     user_bio = replied_user.about
@@ -118,30 +102,28 @@ async def fetch_info(replied_user, event):
     restricted = replied_user.user.restricted
     verified = replied_user.user.verified
     photo = await event.client.download_profile_photo(user_id,
-                                                      TEMP_DOWNLOAD_DIRECTORY +
+                                                      TMP_DOWNLOAD_DIRECTORY +
                                                       str(user_id) + ".jpg",
                                                       download_big=True)
     first_name = first_name.replace(
-        "\u2060", "") if first_name else ("This User has no First Name")
+        "\u2060", "") if first_name else ("Questo utente non ha nome.")
     last_name = last_name.replace(
-        "\u2060", "") if last_name else ("This User has no Last Name")
+        "\u2060", "") if last_name else ("Questo utente non ha cognome.")
     username = "@{}".format(username) if username else (
-        "This User has no Username")
-    user_bio = "This User has no About" if not user_bio else user_bio
+        "Questo utente has non ha Username.")
+    user_bio = "Questo utente non ha descrizione." if not user_bio else user_bio
 
-    caption = "<b>USER INFO:</b>\n\n"
-    caption += f"First Name: {first_name}\n"
-    caption += f"Last Name: {last_name}\n"
-    caption += f"Username: {username}\n"
-    caption += f"Data Centre ID: {dc_id}\n"
-    caption += f"Number of Profile Pics: {replied_user_profile_photos_count}\n"
-    caption += f"Is Bot: {is_bot}\n"
-    caption += f"Is Restricted: {restricted}\n"
-    caption += f"Is Verified by Telegram: {verified}\n"
-    caption += f"ID: <code>{user_id}</code>\n\n"
-    caption += f"Bio: \n<code>{user_bio}</code>\n\n"
-    caption += f"Common Chats with this user: {common_chat}\n"
-    caption += f"Permanent Link To Profile: "
+    caption = "<b>INFO UTENTE:</b> \n"
+    caption += f"Nome: {first_name} \n"
+    caption += f"Cognome: {last_name} \n"
+    caption += f"Username: {username} \n"
+    caption += f"Bot: {is_bot} \n"
+    caption += f"Restrizioni: {restricted} \n"
+    caption += f"Verificato da Telegram: {verified} \n"
+    caption += f"ID: <code>{user_id}</code> \n \n"
+    caption += f"Bio: \n<code>{user_bio}</code> \n \n"
+    caption += f"Gruppi in comune: {common_chat} \n"
+    caption += f"Link permanente al profilo: "
     caption += f"<a href=\"tg://user?id={user_id}\">{first_name}</a>"
 
     return photo, caption
@@ -149,6 +131,6 @@ async def fetch_info(replied_user, event):
 
 CMD_HELP.update({
     "whois":
-    ".whois <username> or reply to someones text with .whois\
-    \nUsage: Gets info of an user."
+    ".whois <username>(or reply to the target person's message)\
+    \nUsage: Get info about a user."
 })
